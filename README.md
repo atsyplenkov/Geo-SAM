@@ -24,6 +24,9 @@ The Geo-SAM plugin includes two separate parts: the **Image Encoding Part**, and
 
 ## Installation and Usage
 
+> [!NOTE]
+> The plugin currently supports `torchgeo` <= 0.7.2, we were aware of the compatibility issue with `torchgeo` 0.8.0 and are working on a fix. Please install `torchgeo` 0.7.2 or lower to ensure the plugin works properly.
+
 - Official Documentation:
   - [How to install?](https://geo-sam.readthedocs.io/en/latest/installation.html)
   - [How to use?](https://geo-sam.readthedocs.io/en/latest/Usage/index.html)
