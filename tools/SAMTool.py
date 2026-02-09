@@ -14,7 +14,12 @@ from .canvasTool import Canvas_Points, Canvas_Rectangle, SAM_PolygonFeature
 from .geoTool import LayerExtent
 from .messageTool import MessageTool
 from .sam_ext import SamPredictorNoImgEncoder, build_sam_no_encoder
-from .torchgeo_sam import SamTestFeatureDataset, SamTestFeatureGeoSampler
+from .torchgeo_sam import (
+    SamTestFeatureDataset,
+    SamTestFeatureGeoSampler,
+    get_index_bounds,
+    get_index_mint_maxt,
+)
 
 if TYPE_CHECKING:
     from .widgetTool import Selector
@@ -56,7 +61,9 @@ class SAM_Model:
         sam = build_sam_no_encoder(checkpoint=self.sam_checkpoint[self.model_type])
         self.predictor = SamPredictorNoImgEncoder(sam)
 
-        feature_bounds = self.test_features.index.bounds
+        feature_bounds = get_index_bounds(
+            self.test_features.index.bounds, index=self.test_features.index
+        )
         self.feature_size = len(self.test_features.index)  # .get_size()
         self.extent = QgsRectangle(
             feature_bounds[0], feature_bounds[2], feature_bounds[1], feature_bounds[3]
@@ -72,13 +79,16 @@ class SAM_Model:
 
         min_x, max_x, min_y, max_y = extent_union
 
+        mint, maxt = get_index_mint_maxt(
+            self.test_features.index.bounds, index=self.test_features.index
+        )
         prompts_roi = BoundingBox(
             min_x,
             max_x,
             min_y,
             max_y,
-            self.test_features.index.bounds[4],
-            self.test_features.index.bounds[5],
+            mint,
+            maxt,
         )
 
         start_time = time.time()

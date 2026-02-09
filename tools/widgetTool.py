@@ -42,7 +42,11 @@ from .canvasTool import (
 from .geoTool import ImageCRSManager
 from .messageTool import MessageTool
 from .SAMTool import SAM_Model
-from .torchgeo_sam import SamTestGridGeoSampler, SamTestRasterDataset
+from .torchgeo_sam import (
+    SamTestGridGeoSampler,
+    SamTestRasterDataset,
+    get_index_mint_maxt,
+)
 
 SAM_Model_Types_Full: List[str] = ["vit_h (huge)", "vit_l (large)", "vit_b (base)"]
 SAM_Model_Types = [i.split(" ")[0].strip() for i in SAM_Model_Types_Full]
@@ -1638,13 +1642,14 @@ class EncoderCopilot(QDockWidget):
             cache=False,
         )
         extent = self.get_extent()
+        mint, maxt = get_index_mint_maxt(layer_ds.index.bounds, index=layer_ds.index)
         extent_bbox = BoundingBox(
             minx=extent.xMinimum(),
             maxx=extent.xMaximum(),
             miny=extent.yMinimum(),
             maxy=extent.yMaximum(),
-            mint=layer_ds.index.bounds[4],
-            maxt=layer_ds.index.bounds[5],
+            mint=mint,
+            maxt=maxt,
         )
 
         self.ds_sampler = SamTestGridGeoSampler(

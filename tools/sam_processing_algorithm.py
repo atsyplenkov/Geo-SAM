@@ -45,7 +45,11 @@ from torchgeo.samplers import Units
 
 from ..docs import encoder_help
 from ..ui.icons import QIcon_EncoderTool
-from .torchgeo_sam import SamTestGridGeoSampler, SamTestRasterDataset
+from .torchgeo_sam import (
+    SamTestGridGeoSampler,
+    SamTestRasterDataset,
+    get_index_mint_maxt,
+)
 
 # 0 for meters, 6 for degrees, 9 for unknown
 UNIT_METERS = 0
@@ -497,13 +501,16 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
 
         # feedback.pushInfo(f'raster dataset crs: {rlayer_ds.crs}')
 
+        mint, maxt = get_index_mint_maxt(
+            rlayer_ds.index.bounds, index=rlayer_ds.index
+        )
         extent_bbox = BoundingBox(
             minx=extent.xMinimum(),
             maxx=extent.xMaximum(),
             miny=extent.yMinimum(),
             maxy=extent.yMaximum(),
-            mint=rlayer_ds.index.bounds[4],
-            maxt=rlayer_ds.index.bounds[5],
+            mint=mint,
+            maxt=maxt,
         )
 
         self.sam_model = self.initialize_sam(
