@@ -60,8 +60,15 @@ class SAM_Model:
         self.test_features = SamTestFeatureDataset(
             root=self.feature_dir, bands=None, cache=False
         )
+        feature_count = 0
+        index_df = getattr(self.test_features, "index_df", None)
+        if index_df is not None:
+            try:
+                feature_count = int(len(index_df))
+            except Exception:
+                feature_count = 0
         _debug_trace(
-            f"SAM_Model:dataset_ok count={len(self.test_features.index)} model={self.test_features.model_type}"
+            f"SAM_Model:dataset_ok count={feature_count} model={self.test_features.model_type}"
         )
         self.img_crs = str(self.test_features.crs)
         self.img_qgs_crs = QgsCoordinateReferenceSystem(str(self.test_features.crs))
@@ -78,7 +85,7 @@ class SAM_Model:
         feature_bounds = get_index_bounds(
             self.test_features.index.bounds, index=self.test_features.index
         )
-        self.feature_size = len(self.test_features.index)  # .get_size()
+        self.feature_size = feature_count
         self.extent = QgsRectangle(
             feature_bounds[0], feature_bounds[2], feature_bounds[1], feature_bounds[3]
         )

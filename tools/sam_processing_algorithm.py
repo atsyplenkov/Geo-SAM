@@ -489,6 +489,14 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
                 cache=False,
             )
         # \n raster_ds crs: {str(CRS(rlayer_ds.crs))}, \
+        dataset_count = "n/a"
+        index_df = getattr(rlayer_ds, "index_df", None)
+        if index_df is not None:
+            try:
+                dataset_count = str(len(index_df))
+            except Exception:
+                dataset_count = "n/a"
+
         feedback.pushInfo(
             f"\n RasterDataset info: \
             \n filename_glob: {rlayer_ds.filename_glob}, \
@@ -496,7 +504,7 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
             \n input bands: {rlayer_ds.bands}, \
             \n resolution: {rlayer_ds.res}, \
             \n bounds: {rlayer_ds.index.bounds}, \
-            \n num: {len(rlayer_ds.index)}\n"
+            \n num: {dataset_count}\n"
         )
 
         # feedback.pushInfo(f'raster dataset crs: {rlayer_ds.crs}')
