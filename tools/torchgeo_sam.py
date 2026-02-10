@@ -73,6 +73,108 @@ class _IntersectionHit:
         self.object = path
 
 
+class _PythonIndexItem:
+    def __init__(
+        self,
+        item_id: int,
+        bounds: Tuple[float, float, float, float, float, float],
+        obj: Optional[str],
+    ) -> None:
+        self.id = item_id
+        self.bounds = bounds
+        self.object = obj
+
+
+class _PythonSpatialIndex:
+    """Pure-Python spatial index used to avoid native rtree crashes in QGIS runtime."""
+
+    def __init__(self, interleaved: bool = False) -> None:
+        self.interleaved = interleaved
+        self._items: List[_PythonIndexItem] = []
+
+    @staticmethod
+    def _bounds6(
+        bounds: Union[BoundingBox, Sequence[float], Tuple[float, ...]]
+    ) -> Tuple[float, float, float, float, float, float]:
+        if hasattr(bounds, "minx") and hasattr(bounds, "maxx"):
+            return (
+                float(bounds.minx),
+                float(bounds.maxx),
+                float(bounds.miny),
+                float(bounds.maxy),
+                float(getattr(bounds, "mint", 0.0)),
+                float(getattr(bounds, "maxt", float(sys.maxsize))),
+            )
+        if isinstance(bounds, (list, tuple)):
+            if len(bounds) >= 6:
+                return (
+                    float(bounds[0]),
+                    float(bounds[1]),
+                    float(bounds[2]),
+                    float(bounds[3]),
+                    float(bounds[4]),
+                    float(bounds[5]),
+                )
+            if len(bounds) == 4:
+                return (
+                    float(bounds[0]),
+                    float(bounds[1]),
+                    float(bounds[2]),
+                    float(bounds[3]),
+                    0.0,
+                    float(sys.maxsize),
+                )
+        raise TypeError("Unsupported bounds format for python spatial index")
+
+    @staticmethod
+    def _intersects(
+        a: Tuple[float, float, float, float, float, float],
+        b: Tuple[float, float, float, float, float, float],
+    ) -> bool:
+        return not (
+            a[1] < b[0]
+            or a[0] > b[1]
+            or a[3] < b[2]
+            or a[2] > b[3]
+            or a[5] < b[4]
+            or a[4] > b[5]
+        )
+
+    @property
+    def bounds(self) -> Tuple[float, float, float, float, float, float]:
+        if not self._items:
+            return (0.0, 0.0, 0.0, 0.0, 0.0, float(sys.maxsize))
+        minx = min(item.bounds[0] for item in self._items)
+        maxx = max(item.bounds[1] for item in self._items)
+        miny = min(item.bounds[2] for item in self._items)
+        maxy = max(item.bounds[3] for item in self._items)
+        mint = min(item.bounds[4] for item in self._items)
+        maxt = max(item.bounds[5] for item in self._items)
+        return (minx, maxx, miny, maxy, mint, maxt)
+
+    def insert(
+        self,
+        item_id: int,
+        bounds: Union[BoundingBox, Sequence[float], Tuple[float, ...]],
+        obj: Optional[str] = None,
+    ) -> None:
+        self._items.append(_PythonIndexItem(item_id, self._bounds6(bounds), obj))
+
+    def intersection(
+        self,
+        bounds: Union[BoundingBox, Sequence[float], Tuple[float, ...]],
+        objects: bool = False,
+    ) -> List[Any]:
+        query = self._bounds6(bounds)
+        hits = [item for item in self._items if self._intersects(item.bounds, query)]
+        if objects:
+            return hits
+        return [item.id for item in hits]
+
+    def __len__(self) -> int:
+        return len(self._items)
+
+
 def _is_non_interleaved_index(index: Any) -> bool:
     if hasattr(index, "interleaved"):
         return not bool(getattr(index, "interleaved"))
@@ -570,8 +672,8 @@ class SamTestFeatureDataset(RasterDataset):
         # super().__init__(root, crs, res, bands, transforms, cache)
         self.transforms = transforms
 
-        # Create an R-tree to index the dataset
-        self.index = Index(interleaved=False, properties=Property(dimension=3))
+        # Use pure-Python index for feature datasets to avoid native rtree crashes in QGIS.
+        self.index = _PythonSpatialIndex(interleaved=False)
 
         self.root = root
         self.bands = bands or self.all_bands
@@ -999,7 +1101,6 @@ class SamTestFeatureGeoSampler(GeoSampler):
             # roi = BoundingBox(*self.index.bounds)
             raise Exception("roi should be defined based on prompts!!!")
         else:
-            self.index = Index(interleaved=False, properties=Property(dimension=3))
             hits = dataset.index.intersection(tuple(roi), objects=True)
             # hit_nearest = list(dataset.index.nearest(tuple(roi), num_results=1, objects=True))[0]
             idx = 0
