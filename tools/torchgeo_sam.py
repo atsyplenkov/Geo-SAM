@@ -584,6 +584,11 @@ class SamTestFeatureDataset(RasterDataset):
         # pathname = os.path.join(root, "**", self.filename_glob)
         pathname = os.path.join(root, self.filename_glob)
         raster_list = glob.glob(pathname, recursive=True)
+        if len(raster_list) == 0:
+            msg = f"No {self.__class__.__name__} data was found in `root='{self.root}'`"
+            if self.bands:
+                msg += f" with `bands={self.bands}`"
+            raise FileNotFoundError(msg)
 
         raster_name = os.path.basename(raster_list[0])
         for m_type in model_type_list:

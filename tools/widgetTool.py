@@ -708,7 +708,8 @@ class Selector(QDockWidget):
         if not hasattr(self, "res"):
             return None
         self.t_area_default = min_pixel * self.res**2
-        self.wdg_sel.Box_min_pixel.setValue(self.t_area_default)
+        # Box_min_pixel stores pixel count; conversion to area happens in filter_feature_by_area.
+        self.wdg_sel.Box_min_pixel.setValue(min_pixel)
         save_user_settings({"default_minimum_pixels": min_pixel}, mode="update")
 
     def ensure_polygon_sam_exist(self):
