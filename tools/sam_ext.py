@@ -1,5 +1,6 @@
 # Modified from sam.build_sam.py
 
+import os
 from typing import Tuple, Type
 import torch
 import numpy as np
@@ -8,6 +9,16 @@ from segment_anything import SamPredictor
 from segment_anything.modeling import MaskDecoder, PromptEncoder, Sam, TwoWayTransformer, ImageEncoderViT
 from segment_anything.utils.transforms import ResizeLongestSide
 import torch.nn as nn
+
+# Reduce thread/runtime conflicts when SAM is loaded inside QGIS process.
+try:
+    _torch_threads = int(os.environ.get("OMP_NUM_THREADS", "1"))
+    if _torch_threads < 1:
+        _torch_threads = 1
+    torch.set_num_threads(_torch_threads)
+    torch.set_num_interop_threads(1)
+except Exception:
+    pass
 
 
 class FakeImageEncoderViT(nn.Module):
