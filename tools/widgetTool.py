@@ -1,5 +1,7 @@
+import ast
 import json
 import os
+import traceback
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
@@ -50,6 +52,29 @@ from .torchgeo_sam import (
 
 SAM_Model_Types_Full: List[str] = ["vit_h (huge)", "vit_l (large)", "vit_b (base)"]
 SAM_Model_Types = [i.split(" ")[0].strip() for i in SAM_Model_Types_Full]
+
+
+def _coerce_res_scalar(value: Any) -> float:
+    """Coerce feature index `res` values to a numeric scalar."""
+    if isinstance(value, (int, float, np.integer, np.floating)):
+        return float(value)
+    if isinstance(value, (tuple, list, np.ndarray)):
+        if len(value) == 0:
+            raise ValueError("Empty resolution sequence")
+        return float(value[0])
+    if isinstance(value, str):
+        txt = value.strip()
+        if txt == "":
+            raise ValueError("Empty resolution string")
+        if txt.startswith("(") or txt.startswith("["):
+            parsed = ast.literal_eval(txt)
+            if isinstance(parsed, (tuple, list, np.ndarray)):
+                if len(parsed) == 0:
+                    raise ValueError("Empty parsed resolution sequence")
+                return float(parsed[0])
+            return float(parsed)
+        return float(txt)
+    return float(value)
 
 
 shp_file_load_filter = (
@@ -337,14 +362,15 @@ class Selector(QDockWidget):
         MessageTool.MessageLog(f"user setting: {Settings}")
         self.set_styles_settings(Settings)
 
-        if Settings["load_demo"]:
-            # self.wdg_sel.QgsFile_feature.setFilePath(self.feature_dir)
-            self.wdg_sel.radioButton_load_demo.setChecked(True)
-            # self._set_feature_related()
-            # self.load_demo_img()
-            MessageTool.MessageLog("Demo loaded")
+        self.load_demo = bool(Settings["load_demo"])
+        self.wdg_sel.radioButton_load_demo.blockSignals(True)
+        self.wdg_sel.radioButton_load_demo.setChecked(self.load_demo)
+        self.wdg_sel.radioButton_load_demo.blockSignals(False)
+
+        if self.load_demo:
+            self.wdg_sel.QgsFile_feature.setFilePath(self.demo_dir)
+            MessageTool.MessageLog("Demo folder selected (manual load)")
         else:
-            self.wdg_sel.radioButton_load_demo.setChecked(False)
             MessageTool.MessageLog("not load Demo")
 
         # TODO: show boundary issues
@@ -486,9 +512,10 @@ class Selector(QDockWidget):
             "you can start labeling now",
         )
 
-        self.res = float(
-            (self.sam_model.test_features.index_df.loc[:, "res"] / 16).mean()
+        res_series = self.sam_model.test_features.index_df.loc[:, "res"].map(
+            _coerce_res_scalar
         )
+        self.res = float((res_series / 16.0).mean())
         self.img_crs_manager = ImageCRSManager(self.sam_model.img_crs)
         self.canvas_points = Canvas_Points(self.canvas, self.img_crs_manager)
         self.canvas_rect = Canvas_Rectangle(self.canvas, self.img_crs_manager)
@@ -979,7 +1006,13 @@ class Selector(QDockWidget):
         self.feature_dir = self.wdg_sel.QgsFile_feature.filePath()
         if self.feature_dir is not None and os.path.exists(self.feature_dir):
             self.clear_layers(clear_extent=True)
-            self._set_feature_related()
+            try:
+                self._set_feature_related()
+            except Exception as exc:
+                MessageTool.MessageBar("Oops", f"Failed to load feature folder: {exc}")
+                MessageTool.MessageLog(traceback.format_exc(), level="critical")
+                self.feature_loaded = False
+                return
             # self.toggle_edit_mode()
             self.wdg_sel.radioButton_enable.setChecked(True)
             self.toggle_encoding_extent()
@@ -1192,19 +1225,21 @@ class Selector(QDockWidget):
 
     def toggle_load_demo_img(self):
         """Toggle whether load demo image"""
-        if self.wdg_sel.radioButton_load_demo.isChecked():
-            self.load_demo = True
+        self.load_demo = self.wdg_sel.radioButton_load_demo.isChecked()
+
+        if self.load_demo:
             self.wdg_sel.QgsFile_feature.setFilePath(self.demo_dir)
-            self.load_feature()
-            # self.clear_layers(clear_extent=True)
-            # self._set_feature_related()
-            # self.toggle_encoding_extent()
             self.load_demo_img()
             self.zoom_to_extent()
-        else:
-            self.load_demo = False
+            MessageTool.MessageBar(
+                "Info",
+                "Demo folder selected. Click 'Load Feature' to initialize features.",
+            )
+
         save_user_settings({"load_demo": self.load_demo}, mode="update")
-        self.reset_prompt_type()
+
+        if self.feature_loaded:
+            self.reset_prompt_type()
 
     def reset_all_styles(self):
         self.reset_points_bg()

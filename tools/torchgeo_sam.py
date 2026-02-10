@@ -1,4 +1,5 @@
 # Extension of torchgeo library by zyzhao
+import ast
 import glob
 import os
 import re
@@ -343,7 +344,45 @@ def query_index_hits(
     return hits
 
 
-def get_pixel_size(res: Union[float, Tuple[float, float]]) -> Tuple[float, float]:
+def parse_resolution(
+    res: Union[float, Tuple[float, float], str, List[float], np.ndarray]
+) -> Union[float, Tuple[float, float]]:
+    """Parse resolution values from numbers, tuples/lists, arrays, or CSV strings."""
+    if isinstance(res, (float, int, np.floating, np.integer)):
+        return float(res)
+    if isinstance(res, np.ndarray):
+        values = res.tolist()
+        if len(values) == 0:
+            raise ValueError("Resolution array is empty")
+        if len(values) == 1:
+            return float(values[0])
+        return (float(values[0]), float(values[1]))
+    if isinstance(res, list):
+        if len(res) == 0:
+            raise ValueError("Resolution list is empty")
+        if len(res) == 1:
+            return float(res[0])
+        return (float(res[0]), float(res[1]))
+    if isinstance(res, tuple):
+        if len(res) == 0:
+            raise ValueError("Resolution tuple is empty")
+        if len(res) == 1:
+            return float(res[0])
+        return (float(res[0]), float(res[1]))
+    if isinstance(res, str):
+        txt = res.strip()
+        if txt == "":
+            raise ValueError("Resolution string is empty")
+        if txt.startswith("(") or txt.startswith("["):
+            parsed = ast.literal_eval(txt)
+            return parse_resolution(parsed)
+        return float(txt)
+    return float(res)
+
+
+def get_pixel_size(
+    res: Union[float, Tuple[float, float], str, List[float], np.ndarray]
+) -> Tuple[float, float]:
     """Get pixel size from resolution.
 
     Args:
@@ -352,10 +391,11 @@ def get_pixel_size(res: Union[float, Tuple[float, float]]) -> Tuple[float, float
     Returns:
         pixel size in pixels
     """
-    if isinstance(res, float):
-        pixel_size = (res, res)
-    elif isinstance(res, tuple):
-        pixel_size = (res[0], res[1])
+    parsed_res = parse_resolution(res)
+    if isinstance(parsed_res, float):
+        pixel_size = (parsed_res, parsed_res)
+    elif isinstance(parsed_res, tuple):
+        pixel_size = (parsed_res[0], parsed_res[1])
     else:
         raise TypeError("Resolution must be a float or a tuple of floats")
     return pixel_size
@@ -562,7 +602,7 @@ class SamTestFeatureDataset(RasterDataset):
                     if crs is None:
                         crs = row_df["crs"]
                     if res is None:
-                        res = row_df["res"]
+                        res = parse_resolution(row_df["res"])
                     # id = row_df['id']
                     coords = (
                         row_df["minx"],
@@ -679,7 +719,7 @@ class SamTestFeatureDataset(RasterDataset):
                     raise AssertionError(msg)
 
         self._crs = cast(CRS, crs)
-        self.res = cast(float, res)
+        self.res = cast(float, parse_resolution(res))
 
     def __getitem__(self, query: Dict[str, Any]) -> Dict[str, Any]:
         """Retrieve image/mask and metadata indexed by query.
