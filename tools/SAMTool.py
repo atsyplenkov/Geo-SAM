@@ -2,6 +2,7 @@ import os
 import time
 from pathlib import Path
 from typing import TYPE_CHECKING
+from datetime import datetime
 
 import numpy as np
 import rasterio
@@ -27,6 +28,14 @@ if TYPE_CHECKING:
 # enable GDAL memory cache for gdal >= 3.10
 os.environ["GDAL_MEM_ENABLE_OPEN"] = "YES"
 
+def _debug_trace(msg: str) -> None:
+    """Best-effort trace for native crash diagnosis."""
+    try:
+        with open("/tmp/geosam-loadfeature.trace", "a", encoding="utf-8") as fh:
+            fh.write(f"{datetime.utcnow().isoformat()}Z {msg}\n")
+    except Exception:
+        pass
+
 
 class SAM_Model:
     def __init__(self, feature_dir, cwd):
@@ -47,8 +56,12 @@ class SAM_Model:
 
     def _prepare_data_and_layer(self):
         """Prepares data and layer."""
+        _debug_trace(f"SAM_Model:start feature_dir={self.feature_dir}")
         self.test_features = SamTestFeatureDataset(
             root=self.feature_dir, bands=None, cache=False
+        )
+        _debug_trace(
+            f"SAM_Model:dataset_ok count={len(self.test_features.index)} model={self.test_features.model_type}"
         )
         self.img_crs = str(self.test_features.crs)
         self.img_qgs_crs = QgsCoordinateReferenceSystem(str(self.test_features.crs))
@@ -60,6 +73,7 @@ class SAM_Model:
 
         sam = build_sam_no_encoder(checkpoint=self.sam_checkpoint[self.model_type])
         self.predictor = SamPredictorNoImgEncoder(sam)
+        _debug_trace(f"SAM_Model:predictor_ok model={self.model_type}")
 
         feature_bounds = get_index_bounds(
             self.test_features.index.bounds, index=self.test_features.index
@@ -68,6 +82,7 @@ class SAM_Model:
         self.extent = QgsRectangle(
             feature_bounds[0], feature_bounds[2], feature_bounds[1], feature_bounds[3]
         )
+        _debug_trace("SAM_Model:extent_ok")
 
     def sam_predict(self, selector: "Selector") -> bool:
         extent_union = LayerExtent.union_extent(

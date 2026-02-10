@@ -43,7 +43,7 @@ from .canvasTool import (
 )
 from .geoTool import ImageCRSManager
 from .messageTool import MessageTool
-from .SAMTool import SAM_Model
+from .SAMTool import SAM_Model, _debug_trace
 from .torchgeo_sam import (
     SamTestGridGeoSampler,
     SamTestRasterDataset,
@@ -504,7 +504,9 @@ class Selector(QDockWidget):
     def _set_feature_related(self):
         """Init or reload feature related objects"""
         # init feature related objects
+        _debug_trace(f"Selector:_set_feature_related:start dir={self.feature_dir}")
         self.sam_model = SAM_Model(self.feature_dir, str(self.cwd))
+        _debug_trace("Selector:_set_feature_related:sam_model_ok")
         MessageTool.MessageBar(
             "Great",
             f"SAM Features with {self.sam_model.feature_size} patches "
@@ -520,6 +522,7 @@ class Selector(QDockWidget):
         self.canvas_points = Canvas_Points(self.canvas, self.img_crs_manager)
         self.canvas_rect = Canvas_Rectangle(self.canvas, self.img_crs_manager)
         self.canvas_extent = Canvas_Extent(self.canvas, self.img_crs_manager)
+        _debug_trace("Selector:_set_feature_related:canvas_ok")
 
         # reset canvas extent
         self.sam_extent_canvas_crs = self.img_crs_manager.img_extent_to_crs(
@@ -551,6 +554,7 @@ class Selector(QDockWidget):
         )
 
         self.reset_all_styles()
+        _debug_trace("Selector:_set_feature_related:done")
 
     def zoom_to_extent(self):
         """Change Canvas extent to feature extent"""
@@ -1005,11 +1009,14 @@ class Selector(QDockWidget):
     def load_feature(self):
         """load encoded image feature"""
         self.feature_dir = self.wdg_sel.QgsFile_feature.filePath()
+        _debug_trace(f"Selector:load_feature:click dir={self.feature_dir}")
         if self.feature_dir is not None and os.path.exists(self.feature_dir):
             self.clear_layers(clear_extent=True)
+            _debug_trace("Selector:load_feature:cleared")
             try:
                 self._set_feature_related()
             except Exception as exc:
+                _debug_trace(f"Selector:load_feature:error {exc}")
                 MessageTool.MessageBar("Oops", f"Failed to load feature folder: {exc}")
                 MessageTool.MessageLog(traceback.format_exc(), level="critical")
                 self.feature_loaded = False
@@ -1018,7 +1025,9 @@ class Selector(QDockWidget):
             self.wdg_sel.radioButton_enable.setChecked(True)
             self.toggle_encoding_extent()
             self.feature_loaded = True
+            _debug_trace("Selector:load_feature:done")
         else:
+            _debug_trace("Selector:load_feature:missing_dir")
             MessageTool.MessageBar(
                 "Oops", "Feature folder not exist, please choose a another folder"
             )
